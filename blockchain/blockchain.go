@@ -42,7 +42,11 @@ func InitBlockChain() *BlockChain {
 		} else {
 			item, err := txn.Get([]byte("lh"))
 			Handle(err)
-			lastHash, err = item.Value()
+			err = item.Value(func(val []byte) error {
+				fmt.Printf("Last hash: %s\n", val)
+				lastHash = append([]byte{}, val...)
+				return nil
+			})
 			return err
 		}
 	})
@@ -51,4 +55,63 @@ func InitBlockChain() *BlockChain {
 
 	blockchain := BlockChain{lastHash, db}
 	return &blockchain
+}
+
+func (chain *BlockChain) AddBlock(data string) {
+	var lastHash []byte
+
+	err := chain.Database.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("lh"))
+		Handle(err)
+		err = item.Value(func(val []byte) error {
+			fmt.Printf("Last hash: %s\n", val)
+			lastHash = append([]byte{}, val...)
+			return nil
+		})
+
+		return err
+	})
+	Handle(err)
+
+	newBlock := CreateBlock(data, lastHash)
+
+	err = chain.Database.Update(func(txn *badger.Txn) error {
+		err := txn.Set(newBlock.Hash, newBlock.Serialize())
+		Handle(err)
+		err = txn.Set([]byte("lh"), newBlock.Hash)
+
+		chain.LastHash = newBlock.Hash
+
+		return err
+	})
+	Handle(err)
+}
+
+func (chain *BlockChain) Iterator() *BlockChainIterator {
+	iter := &BlockChainIterator{chain.LastHash, chain.Database}
+
+	return iter
+}
+
+func (iter *BlockChainIterator) Next() *Block {
+	var block *Block
+
+	err := iter.Database.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(iter.CurrentHash)
+		Handle(err)
+		var encodedBlock []byte
+		err = item.Value(func(val []byte) error {
+			fmt.Printf("Last hash: %s\n", val)
+			encodedBlock = append([]byte{}, val...)
+			return nil
+		})
+		block = Deserialize(encodedBlock)
+
+		return err
+	})
+	Handle(err)
+
+	iter.CurrentHash = block.PrevHash
+
+	return block
 }
