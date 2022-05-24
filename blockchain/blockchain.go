@@ -6,9 +6,7 @@ import (
 	"github.com/dgraph-io/badger"
 )
 
-const (
-	dbPath = "./tmp/blocks"
-)
+const _dbPath = "/tmp/badger"
 
 type BlockChain struct {
 	LastHash []byte
@@ -22,7 +20,8 @@ type BlockChainIterator struct {
 
 func InitBlockChain() *BlockChain {
 	var lastHash []byte
-	opts := badger.DefaultOptions(dbPath)
+	opts := badger.DefaultOptions(_dbPath)
+	opts.Logger = nil
 
 	db, err := badger.Open(opts)
 	Handle(err)
