@@ -2,11 +2,16 @@ package blockchain
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/dgraph-io/badger"
 )
 
-const _dbPath = "/tmp/badger"
+const (
+	_dbPath = "/tmp/badger/blocks"
+	_dbFile = "/tmp/badger/blocks/MANIFEST"
+	_genesisData = "1st tx from Genesis"
+)
 
 type BlockChain struct {
 	LastHash []byte
@@ -113,4 +118,12 @@ func (iter *BlockChainIterator) Next() *Block {
 	iter.CurrentHash = block.PrevHash
 
 	return block
+}
+
+func isDBExists() bool {
+	if _, err := os.Stat(_dbFile); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
 }
