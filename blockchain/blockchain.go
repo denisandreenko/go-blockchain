@@ -63,13 +63,12 @@ func ContinueBlockChain(address string) *BlockChain {
 		runtime.Goexit()
 	}
 
-	var lastHash []byte
-
 	opts := badger.DefaultOptions(_dbPath)
 	opts.Logger = nil
 	db, err := badger.Open(opts)
 	Handle(err)
 
+	var lastHash []byte
 	err = db.Update(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
 		Handle(err)
@@ -90,7 +89,6 @@ func ContinueBlockChain(address string) *BlockChain {
 
 func (chain *BlockChain) AddBlock(transactions []*Transaction) {
 	var lastHash []byte
-
 	err := chain.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
 		Handle(err)
