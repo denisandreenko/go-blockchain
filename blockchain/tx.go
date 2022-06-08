@@ -17,7 +17,7 @@ type TxInput struct {
 	PubKey []byte
 }
 
-func NewTXOutput(value int, address string) *TxOutput {
+func NewTxOutput(value int, address string) *TxOutput {
 	txo := &TxOutput{value, nil}
 	txo.Lock([]byte(address))
 
