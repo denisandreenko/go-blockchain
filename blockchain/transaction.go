@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/denisandreenko/go-blockchain/wallet"
 	"log"
+	"math/big"
 )
 
 type Transaction struct {
@@ -110,8 +111,50 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transac
 		signature := append(r.Bytes(), s.Bytes()...)
 
 		tx.Inputs[inId].Signature = signature
-
 	}
+}
+
+func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
+	if tx.IsCoinbase() {
+		return true
+	}
+
+	for _, in := range tx.Inputs {
+		if prevTXs[hex.EncodeToString(in.ID)].ID == nil {
+			log.Panic("Previous transaction not correct")
+		}
+	}
+
+	txCopy := tx.TrimmedCopy()
+	curve := elliptic.P256()
+
+	for inId, in := range tx.Inputs {
+		prevTx := prevTXs[hex.EncodeToString(in.ID)]
+		txCopy.Inputs[inId].Signature = nil
+		txCopy.Inputs[inId].PubKey = prevTx.Outputs[in.Out].PubKeyHash
+		txCopy.ID = txCopy.Hash()
+		txCopy.Inputs[inId].PubKey = nil
+
+		r := big.Int{}
+		s := big.Int{}
+
+		sigLen := len(in.Signature)
+		r.SetBytes(in.Signature[:(sigLen / 2)])
+		s.SetBytes(in.Signature[(sigLen / 2):])
+
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(in.PubKey)
+		x.SetBytes(in.PubKey[:(keyLen / 2)])
+		y.SetBytes(in.PubKey[(keyLen / 2):])
+
+		rawPubKey := ecdsa.PublicKey{curve, &x, &y}
+		if ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) == false {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (tx Transaction) Serialize() []byte {
