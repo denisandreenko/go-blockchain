@@ -13,7 +13,7 @@ type TxOutput struct {
 type TxInput struct {
 	ID  []byte
 	Out int
-	Sig string
+	Sig []byte
 	PubKey []byte
 }
 
