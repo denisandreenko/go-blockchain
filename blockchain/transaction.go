@@ -34,7 +34,7 @@ func CoinbaseTx(to, data string) *Transaction {
 	return &tx
 }
 
-func NewTransaction(from, to string, amount int, chain *BlockChain) *Transaction {
+func NewTransaction(from, to string, amount int, chain *Blockchain) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 
