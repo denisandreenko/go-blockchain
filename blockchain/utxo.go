@@ -49,6 +49,27 @@ func (u *UTXOSet) FindUnspentTransactions(pubKeyHash []byte) []TxOutput {
 	return UTXOs
 }
 
+func (u *UTXOSet) CountTransactions() int {
+	db := u.Blockchain.Database
+	counter := 0
+
+	err := db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Seek(utxoPrefix); it.ValidForPrefix(utxoPrefix); it.Next() {
+			counter++
+		}
+
+		return nil
+	})
+
+	Handle(err)
+
+	return counter
+}
+
 func (u *UTXOSet) Reindex() {
 	db := u.Blockchain.Database
 
