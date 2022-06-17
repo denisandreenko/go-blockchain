@@ -91,7 +91,7 @@ func ContinueBlockChain(address string) *Blockchain {
 	return &chain
 }
 
-func (chain *Blockchain) AddBlock(transactions []*Transaction) {
+func (chain *Blockchain) AddBlock(transactions []*Transaction) *Block {
 	var lastHash []byte
 
 	for _, tx := range transactions {
@@ -124,6 +124,8 @@ func (chain *Blockchain) AddBlock(transactions []*Transaction) {
 		return err
 	})
 	Handle(err)
+
+	return newBlock
 }
 
 func (chain *Blockchain) FindUTXO() map[string]TxOutputs {
