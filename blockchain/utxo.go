@@ -131,6 +131,59 @@ func (u *UTXOSet) Reindex() {
 	Handle(err)
 }
 
+func (u *UTXOSet) Update(block *Block) {
+	db := u.Blockchain.Database
+
+	err := db.Update(func(txn *badger.Txn) error {
+		for _, tx := range block.Transactions {
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Inputs {
+					updatedOuts := TxOutputs{}
+					inID := append(utxoPrefix, in.ID...)
+					item, err := txn.Get(inID)
+					Handle(err)
+					var v []byte
+					err = item.Value(func(val []byte) error {
+						v = append([]byte{}, val...)
+						return nil
+					})
+					Handle(err)
+
+					outs := DeserializeOutputs(v)
+
+					for outIdx, out := range outs.Outputs {
+						if outIdx != in.Out {
+							updatedOuts.Outputs = append(updatedOuts.Outputs, out)
+						}
+					}
+
+					if len(updatedOuts.Outputs) == 0 {
+						if err := txn.Delete(inID); err != nil {
+							log.Panic(err)
+						}
+					} else {
+						if err := txn.Set(inID, updatedOuts.Serialize()); err != nil {
+							log.Panic(err)
+						}
+					}
+				}
+			}
+			newOutputs := TxOutputs{}
+			for _, out := range tx.Outputs {
+				newOutputs.Outputs = append(newOutputs.Outputs, out)
+			}
+
+			txID := append(utxoPrefix, tx.ID...)
+			if err := txn.Set(txID, newOutputs.Serialize()); err != nil {
+				log.Panic(err)
+			}
+		}
+
+		return nil
+	})
+	Handle(err)
+}
+
 func (u *UTXOSet) DeleteByPrefix(prefix []byte) {
 	deleteKeys := func(keysForDelete [][]byte) error {
 		if err := u.Blockchain.Database.Update(func(txn *badger.Txn) error {
