@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"runtime"
 	"syscall"
@@ -62,6 +65,58 @@ type Version struct {
 	Version    int
 	BestHeight int
 	AddrFrom   string
+}
+
+func HandleConnection(conn net.Conn, chain *blockchain.Blockchain) {
+	req, err := ioutil.ReadAll(conn)
+	defer conn.Close()
+
+	if err != nil {
+		log.Panic(err)
+	}
+	command := BytesToCmd(req[:commandLength])
+	fmt.Printf("Received %s command\n", command)
+
+	switch command {
+	default:
+		fmt.Println("Unknown command")
+	}
+
+}
+
+func SendAddr(address string) {
+	nodes := Addr{KnownNodes}
+	nodes.AddrList = append(nodes.AddrList, nodeAddress)
+	payload := GobEncode(nodes)
+	request := append(CmdToBytes("addr"), payload...)
+
+	SendData(address, request)
+}
+
+func SendData(addr string, data []byte) {
+	conn, err := net.Dial(protocol, addr)
+
+	if err != nil {
+		fmt.Printf("%s is not available\n", addr)
+		var updatedNodes []string
+
+		for _, node := range KnownNodes {
+			if node != addr {
+				updatedNodes = append(updatedNodes, node)
+			}
+		}
+
+		KnownNodes = updatedNodes
+
+		return
+	}
+
+	defer conn.Close()
+
+	_, err = io.Copy(conn, bytes.NewReader(data))
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func CmdToBytes(cmd string) []byte {
