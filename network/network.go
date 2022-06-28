@@ -93,6 +93,36 @@ func SendAddr(address string) {
 	SendData(address, request)
 }
 
+func SendInv(address, kind string, items [][]byte) {
+	inventory := Inv{nodeAddress, kind, items}
+	payload := GobEncode(inventory)
+	request := append(CmdToBytes("inv"), payload...)
+
+	SendData(address, request)
+}
+
+func SendGetBlocks(address string) {
+	payload := GobEncode(GetBlocks{nodeAddress})
+	request := append(CmdToBytes("getblocks"), payload...)
+
+	SendData(address, request)
+}
+
+func SendGetData(address, kind string, id []byte) {
+	payload := GobEncode(GetData{nodeAddress, kind, id})
+	request := append(CmdToBytes("getdata"), payload...)
+
+	SendData(address, request)
+}
+
+func SendTx(addr string, tnx *blockchain.Transaction) {
+	data := Tx{nodeAddress, tnx.Serialize()}
+	payload := GobEncode(data)
+	request := append(CmdToBytes("tx"), payload...)
+
+	SendData(addr, request)
+}
+
 func SendData(addr string, data []byte) {
 	conn, err := net.Dial(protocol, addr)
 
