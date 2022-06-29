@@ -84,6 +84,29 @@ func HandleConnection(conn net.Conn, chain *blockchain.Blockchain) {
 
 }
 
+func HandleAddr(request []byte) {
+	var buff bytes.Buffer
+	var payload Addr
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+
+	}
+
+	KnownNodes = append(KnownNodes, payload.AddrList...)
+	fmt.Printf("there are %d known nodes\n", len(KnownNodes))
+	RequestBlocks()
+}
+
+func RequestBlocks() {
+	for _, node := range KnownNodes {
+		SendGetBlocks(node)
+	}
+}
+
 func SendAddr(address string) {
 	nodes := Addr{KnownNodes}
 	nodes.AddrList = append(nodes.AddrList, nodeAddress)
