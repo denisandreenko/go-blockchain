@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"runtime"
 
@@ -14,8 +13,8 @@ import (
 )
 
 const (
-	_dbPath = "/tmp/badger/blocks"
-	_dbFile = "/tmp/badger/blocks/MANIFEST"
+	_dbPath      = "/tmp/badger/blocks"
+	_dbFile      = "/tmp/badger/blocks/MANIFEST"
 	_genesisData = "1st tx from Genesis"
 )
 
@@ -91,41 +90,45 @@ func ContinueBlockChain(address string) *Blockchain {
 	return &chain
 }
 
-func (chain *Blockchain) AddBlock(transactions []*Transaction) *Block {
-	var lastHash []byte
-
-	for _, tx := range transactions {
-		if chain.VerifyTransaction(tx) != true {
-			log.Panic("Invalid Transaction")
+func (chain *Blockchain) AddBlock(block *Block) {
+	err := chain.Database.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(block.Hash); err == nil {
+			return nil
 		}
-	}
 
-	err := chain.Database.View(func(txn *badger.Txn) error {
+		blockData := block.Serialize()
+		err := txn.Set(block.Hash, blockData)
+		Handle(err)
+
 		item, err := txn.Get([]byte("lh"))
 		Handle(err)
+		var lastHash []byte
 		err = item.Value(func(val []byte) error {
 			lastHash = append([]byte{}, val...)
 			return nil
 		})
-
-		return err
-	})
-	Handle(err)
-
-	newBlock := CreateBlock(transactions, lastHash)
-
-	err = chain.Database.Update(func(txn *badger.Txn) error {
-		err := txn.Set(newBlock.Hash, newBlock.Serialize())
 		Handle(err)
-		err = txn.Set([]byte("lh"), newBlock.Hash)
 
-		chain.LastHash = newBlock.Hash
+		var lastBlockData []byte
+		item, err = txn.Get(lastHash)
+		Handle(err)
+		err = item.Value(func(val []byte) error {
+			lastBlockData = append([]byte{}, val...)
+			return nil
+		})
+		Handle(err)
 
-		return err
+		lastBlock := Deserialize(lastBlockData)
+
+		if block.Height > lastBlock.Height {
+			err = txn.Set([]byte("lh"), block.Hash)
+			Handle(err)
+			chain.LastHash = block.Hash
+		}
+
+		return nil
 	})
 	Handle(err)
-
-	return newBlock
 }
 
 func (chain *Blockchain) FindUTXO() map[string]TxOutputs {
