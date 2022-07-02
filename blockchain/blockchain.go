@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	_dbPath      = "/tmp/badger/blocks"
-	_dbFile      = "/tmp/badger/blocks/MANIFEST"
+	_dbPath      = "/tmp/badger/blocks_%s"
 	_genesisData = "1st tx from Genesis"
 )
 
@@ -28,14 +27,14 @@ type BlockchainIterator struct {
 	Database    *badger.DB
 }
 
-func InitBlockChain(address string) *Blockchain {
-	var lastHash []byte
-
-	if isDBExists() {
+func InitBlockchain(address string, nodeId string) *Blockchain {
+	path := fmt.Sprintf(_dbPath, nodeId)
+	if isDBExists(path) {
 		fmt.Println("Blockchain already exists")
 		runtime.Goexit()
 	}
 
+	var lastHash []byte
 	opts := badger.DefaultOptions(_dbPath)
 	opts.Logger = nil
 	db, err := badger.Open(opts)
@@ -60,8 +59,9 @@ func InitBlockChain(address string) *Blockchain {
 	return &blockchain
 }
 
-func ContinueBlockChain(address string) *Blockchain {
-	if !isDBExists() {
+func ContinueBlockchain(nodeId string) *Blockchain {
+	path := fmt.Sprintf(_dbPath, nodeId)
+	if !isDBExists(path) {
 		fmt.Println("No existing blockchain found, create one!")
 		runtime.Goexit()
 	}
@@ -248,8 +248,8 @@ func (iter *BlockchainIterator) Next() *Block {
 	return block
 }
 
-func isDBExists() bool {
-	if _, err := os.Stat(_dbFile); os.IsNotExist(err) {
+func isDBExists(path string) bool {
+	if _, err := os.Stat(path + "/MANIFEST"); os.IsNotExist(err) {
 		return false
 	}
 	return true
