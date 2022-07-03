@@ -40,7 +40,8 @@ func InitBlockchain(address string, nodeId string) *Blockchain {
 	var lastHash []byte
 	opts := badger.DefaultOptions(_dbPath)
 	opts.Logger = nil
-	db, err := badger.Open(opts)
+
+	db, err := openDB(path, opts)
 	Handle(err)
 
 	err = db.Update(func(txn *badger.Txn) error {
@@ -71,7 +72,8 @@ func ContinueBlockchain(nodeId string) *Blockchain {
 
 	opts := badger.DefaultOptions(_dbPath)
 	opts.Logger = nil
-	db, err := badger.Open(opts)
+
+	db, err := openDB(path, opts)
 	Handle(err)
 
 	var lastHash []byte
