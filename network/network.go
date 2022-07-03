@@ -101,6 +101,36 @@ func HandleAddr(request []byte) {
 	RequestBlocks()
 }
 
+func HandleBlock(request []byte, chain *blockchain.Blockchain) {
+	var buff bytes.Buffer
+	var payload Block
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	blockData := payload.Block
+	block := blockchain.Deserialize(blockData)
+
+	fmt.Println("Recevied a new block!")
+	chain.AddBlock(block)
+
+	fmt.Printf("Added block %x\n", block.Hash)
+
+	if len(blocksInTransit) > 0 {
+		blockHash := blocksInTransit[0]
+		SendGetData(payload.AddrFrom, "block", blockHash)
+
+		blocksInTransit = blocksInTransit[1:]
+	} else {
+		UTXOSet := blockchain.UTXOSet{Blockchain: chain}
+		UTXOSet.Reindex()
+	}
+}
+
 func RequestBlocks() {
 	for _, node := range KnownNodes {
 		SendGetBlocks(node)

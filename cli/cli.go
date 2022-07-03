@@ -49,7 +49,7 @@ func (cli *CommandLine) createWallet() {
 }
 
 func (cli *CommandLine) printChain() {
-	chain := blockchain.ContinueBlockChain("")
+	chain := blockchain.ContinueBlockchain("")
 	defer chain.Database.Close()
 	iter := chain.Iterator()
 
@@ -68,9 +68,16 @@ func (cli *CommandLine) printChain() {
 	}
 }
 
-func (cli *CommandLine) createBlockChain(address string) {
-	chain := blockchain.InitBlockChain(address)
+func (cli *CommandLine) createBlockchain(address string, nodeID string) {
+	if !wallet.ValidateAddress(address) {
+		log.Panic("Address is not valid")
+	}
+	chain := blockchain.InitBlockchain(address, nodeID)
 	chain.Database.Close()
+
+	UTXOSet := blockchain.UTXOSet{chain}
+	UTXOSet.Reindex()
+
 	fmt.Println("Finished!")
 }
 
@@ -78,13 +85,13 @@ func (cli *CommandLine) getBalance(address string) {
 	if !wallet.ValidateAddress(address) {
 		log.Panic("Address is not Valid")
 	}
-	chain := blockchain.ContinueBlockChain(address)
+	chain := blockchain.ContinueBlockchain(address)
 	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	defer chain.Database.Close()
 
 	balance := 0
 	pubKeyHash := wallet.Base58Decode([]byte(address))
-	pubKeyHash = pubKeyHash[1 : len(pubKeyHash) - 4]
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 	UTXOs := UTXOSet.FindUnspentTransactions(pubKeyHash)
 
 	for _, out := range UTXOs {
@@ -102,7 +109,7 @@ func (cli *CommandLine) send(from, to string, amount int) {
 		log.Panic("address is not valid")
 	}
 
-	chain := blockchain.ContinueBlockChain(from)
+	chain := blockchain.ContinueBlockchain(from)
 	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	defer chain.Database.Close()
 
@@ -116,13 +123,18 @@ func (cli *CommandLine) send(from, to string, amount int) {
 func (cli *CommandLine) Run() {
 	cli.validateArgs()
 
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		fmt.Printf("NODE_ID env is not set!")
+		runtime.Goexit()
+	}
+
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
 	listAddressesCmd := flag.NewFlagSet("listaddresses", flag.ExitOnError)
-
 
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
@@ -179,7 +191,7 @@ func (cli *CommandLine) Run() {
 			createBlockchainCmd.Usage()
 			runtime.Goexit()
 		}
-		cli.createBlockChain(*createBlockchainAddress)
+		cli.createBlockchain(*createBlockchainAddress, nodeID)
 	}
 
 	if printChainCmd.Parsed() {

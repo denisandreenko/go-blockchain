@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/dgraph-io/badger"
 )
 
 const (
-	_dbPath = "/tmp/badger/blocks"
-	_dbFile = "/tmp/badger/blocks/MANIFEST"
+	_dbPath      = "/tmp/badger/blocks_%s"
 	_genesisData = "1st tx from Genesis"
 )
 
@@ -29,17 +30,18 @@ type BlockchainIterator struct {
 	Database    *badger.DB
 }
 
-func InitBlockChain(address string) *Blockchain {
-	var lastHash []byte
-
-	if isDBExists() {
+func InitBlockchain(address string, nodeId string) *Blockchain {
+	path := fmt.Sprintf(_dbPath, nodeId)
+	if isDBExists(path) {
 		fmt.Println("Blockchain already exists")
 		runtime.Goexit()
 	}
 
+	var lastHash []byte
 	opts := badger.DefaultOptions(_dbPath)
 	opts.Logger = nil
-	db, err := badger.Open(opts)
+
+	db, err := openDB(path, opts)
 	Handle(err)
 
 	err = db.Update(func(txn *badger.Txn) error {
@@ -61,15 +63,17 @@ func InitBlockChain(address string) *Blockchain {
 	return &blockchain
 }
 
-func ContinueBlockChain(address string) *Blockchain {
-	if !isDBExists() {
+func ContinueBlockchain(nodeId string) *Blockchain {
+	path := fmt.Sprintf(_dbPath, nodeId)
+	if !isDBExists(path) {
 		fmt.Println("No existing blockchain found, create one!")
 		runtime.Goexit()
 	}
 
 	opts := badger.DefaultOptions(_dbPath)
 	opts.Logger = nil
-	db, err := badger.Open(opts)
+
+	db, err := openDB(path, opts)
 	Handle(err)
 
 	var lastHash []byte
@@ -91,41 +95,45 @@ func ContinueBlockChain(address string) *Blockchain {
 	return &chain
 }
 
-func (chain *Blockchain) AddBlock(transactions []*Transaction) *Block {
-	var lastHash []byte
-
-	for _, tx := range transactions {
-		if chain.VerifyTransaction(tx) != true {
-			log.Panic("Invalid Transaction")
+func (chain *Blockchain) AddBlock(block *Block) {
+	err := chain.Database.Update(func(txn *badger.Txn) error {
+		if _, err := txn.Get(block.Hash); err == nil {
+			return nil
 		}
-	}
 
-	err := chain.Database.View(func(txn *badger.Txn) error {
+		blockData := block.Serialize()
+		err := txn.Set(block.Hash, blockData)
+		Handle(err)
+
 		item, err := txn.Get([]byte("lh"))
 		Handle(err)
+		var lastHash []byte
 		err = item.Value(func(val []byte) error {
 			lastHash = append([]byte{}, val...)
 			return nil
 		})
-
-		return err
-	})
-	Handle(err)
-
-	newBlock := CreateBlock(transactions, lastHash)
-
-	err = chain.Database.Update(func(txn *badger.Txn) error {
-		err := txn.Set(newBlock.Hash, newBlock.Serialize())
 		Handle(err)
-		err = txn.Set([]byte("lh"), newBlock.Hash)
 
-		chain.LastHash = newBlock.Hash
+		var lastBlockData []byte
+		item, err = txn.Get(lastHash)
+		Handle(err)
+		err = item.Value(func(val []byte) error {
+			lastBlockData = append([]byte{}, val...)
+			return nil
+		})
+		Handle(err)
 
-		return err
+		lastBlock := Deserialize(lastBlockData)
+
+		if block.Height > lastBlock.Height {
+			err = txn.Set([]byte("lh"), block.Hash)
+			Handle(err)
+			chain.LastHash = block.Hash
+		}
+
+		return nil
 	})
 	Handle(err)
-
-	return newBlock
 }
 
 func (chain *Blockchain) FindUTXO() map[string]TxOutputs {
@@ -243,10 +251,37 @@ func (iter *BlockchainIterator) Next() *Block {
 	iter.CurrentHash = block.PrevHash
 
 	return block
+
 }
 
-func isDBExists() bool {
-	if _, err := os.Stat(_dbFile); os.IsNotExist(err) {
+func retry(dir string, originalOpts badger.Options) (*badger.DB, error) {
+	lockPath := filepath.Join(dir, "LOCK")
+	if err := os.Remove(lockPath); err != nil {
+		return nil, fmt.Errorf(`removing "LOCK": %s`, err)
+	}
+	retryOpts := originalOpts
+	retryOpts.Truncate = true
+	db, err := badger.Open(retryOpts)
+	return db, err
+}
+
+func openDB(dir string, opts badger.Options) (*badger.DB, error) {
+	if db, err := badger.Open(opts); err != nil {
+		if strings.Contains(err.Error(), "LOCK") {
+			if db, err := retry(dir, opts); err == nil {
+				log.Println("database unlocked, value log truncated")
+				return db, nil
+			}
+			log.Println("could not unlock database:", err)
+		}
+		return nil, err
+	} else {
+		return db, nil
+	}
+}
+
+func isDBExists(path string) bool {
+	if _, err := os.Stat(path + "/MANIFEST"); os.IsNotExist(err) {
 		return false
 	}
 	return true

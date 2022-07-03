@@ -9,9 +9,10 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
-	"github.com/denisandreenko/go-blockchain/wallet"
 	"log"
 	"math/big"
+
+	"github.com/denisandreenko/go-blockchain/wallet"
 )
 
 type Transaction struct {
@@ -28,7 +29,7 @@ func CoinbaseTx(to, data string) *Transaction {
 		data = fmt.Sprintf("%x", randData)
 	}
 
-	txin := TxInput{[]byte{}, -1, nil,[]byte(data)}
+	txin := TxInput{[]byte{}, -1, nil, []byte(data)}
 	txout := NewTxOutput(20, to)
 
 	tx := Transaction{nil, []TxInput{txin}, []TxOutput{*txout}}
@@ -171,6 +172,15 @@ func (tx Transaction) Serialize() []byte {
 	}
 
 	return encoded.Bytes()
+}
+
+func DeserializeTransaction(data []byte) Transaction {
+	var transaction Transaction
+
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&transaction)
+	Handle(err)
+	return transaction
 }
 
 func (tx *Transaction) TrimmedCopy() Transaction {
