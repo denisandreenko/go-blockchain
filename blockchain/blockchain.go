@@ -136,6 +136,60 @@ func (chain *Blockchain) AddBlock(block *Block) {
 	Handle(err)
 }
 
+func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
+	var lastHash []byte
+	var lastHeight int
+
+	for _, tx := range transactions {
+		if !chain.VerifyTransaction(tx) {
+			log.Panic("invalid transaction")
+		}
+	}
+
+	err := chain.Database.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte("lh"))
+		Handle(err)
+
+		err = item.Value(func(val []byte) error {
+			lastHash = append([]byte{}, val...)
+			return nil
+		})
+		Handle(err)
+
+		item, err = txn.Get(lastHash)
+		Handle(err)
+
+		var lastBlockData []byte
+		err = item.Value(func(val []byte) error {
+			lastBlockData = append([]byte{}, val...)
+			return nil
+		})
+		Handle(err)
+
+		lastBlock := Deserialize(lastBlockData)
+
+		lastHeight = lastBlock.Height
+
+		return err
+	})
+	Handle(err)
+
+	newBlock := CreateBlock(transactions, lastHash, lastHeight+1)
+
+	err = chain.Database.Update(func(txn *badger.Txn) error {
+		err := txn.Set(newBlock.Hash, newBlock.Serialize())
+		Handle(err)
+		err = txn.Set([]byte("lh"), newBlock.Hash)
+
+		chain.LastHash = newBlock.Hash
+
+		return err
+	})
+	Handle(err)
+
+	return newBlock
+}
+
 func (chain *Blockchain) FindUTXO() map[string]TxOutputs {
 	UTXO := make(map[string]TxOutputs)
 	spentTXOs := make(map[string][]int)
