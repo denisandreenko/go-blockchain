@@ -190,6 +190,49 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	return newBlock
 }
 
+func (chain *Blockchain) GetBlock(blockHash []byte) (Block, error) {
+	var block Block
+
+	err := chain.Database.View(func(txn *badger.Txn) error {
+		if item, err := txn.Get(blockHash); err != nil {
+			return errors.New("block is not found")
+		} else {
+			var blockData []byte
+			err = item.Value(func(val []byte) error {
+				blockData = append([]byte{}, val...)
+				return nil
+			})
+			Handle(err)
+
+			block = *Deserialize(blockData)
+		}
+		return nil
+	})
+	if err != nil {
+		return block, err
+	}
+
+	return block, nil
+}
+
+func (chain *Blockchain) GetBlockHashes() [][]byte {
+	var blocks [][]byte
+
+	iter := chain.Iterator()
+
+	for {
+		block := iter.Next()
+
+		blocks = append(blocks, block.Hash)
+
+		if len(block.PrevHash) == 0 {
+			break
+		}
+	}
+
+	return blocks
+}
+
 func (chain *Blockchain) FindUTXO() map[string]TxOutputs {
 	UTXO := make(map[string]TxOutputs)
 	spentTXOs := make(map[string][]int)
@@ -215,7 +258,7 @@ func (chain *Blockchain) FindUTXO() map[string]TxOutputs {
 				outs.Outputs = append(outs.Outputs, out)
 				UTXO[txID] = outs
 			}
-			if tx.IsCoinbase() == false {
+			if !tx.IsCoinbase() {
 				for _, in := range tx.Inputs {
 					inTxID := hex.EncodeToString(in.ID)
 					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Out)
