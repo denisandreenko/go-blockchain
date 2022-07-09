@@ -3,13 +3,14 @@ package blockchain
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/dgraph-io/badger"
 	"log"
+
+	"github.com/dgraph-io/badger"
 )
 
 var (
-	utxoPrefix = []byte("utxo-")
-	prefixLength = len(utxoPrefix)
+	utxoPrefix       = []byte("utxo-")
+	collectBatchSize = 100000
 )
 
 type UTXOSet struct {
@@ -136,7 +137,7 @@ func (u *UTXOSet) Update(block *Block) {
 
 	err := db.Update(func(txn *badger.Txn) error {
 		for _, tx := range block.Transactions {
-			if tx.IsCoinbase() == false {
+			if !tx.IsCoinbase() {
 				for _, in := range tx.Inputs {
 					updatedOuts := TxOutputs{}
 					inID := append(utxoPrefix, in.ID...)
@@ -169,9 +170,7 @@ func (u *UTXOSet) Update(block *Block) {
 				}
 			}
 			newOutputs := TxOutputs{}
-			for _, out := range tx.Outputs {
-				newOutputs.Outputs = append(newOutputs.Outputs, out)
-			}
+			newOutputs.Outputs = append(newOutputs.Outputs, tx.Outputs...)
 
 			txID := append(utxoPrefix, tx.ID...)
 			if err := txn.Set(txID, newOutputs.Serialize()); err != nil {
@@ -199,25 +198,23 @@ func (u *UTXOSet) DeleteByPrefix(prefix []byte) {
 		return nil
 	}
 
-	// Optimal amount to delete as a batch in BadgerDB
-	collectSize := 100000
 	u.Blockchain.Database.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		keysForDelete := make([][]byte, 0, collectSize)
+		keysForDelete := make([][]byte, 0, collectBatchSize)
 		keysCollected := 0
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 			key := it.Item().KeyCopy(nil)
 			keysForDelete = append(keysForDelete, key)
 			keysCollected++
-			if keysCollected == collectSize {
+			if keysCollected == collectBatchSize {
 				if err := deleteKeys(keysForDelete); err != nil {
 					log.Panic(err)
 				}
-				keysForDelete = make([][]byte, 0, collectSize)
+				keysForDelete = make([][]byte, 0, collectBatchSize)
 				keysCollected = 0
 			}
 		}

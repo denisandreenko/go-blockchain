@@ -151,7 +151,7 @@ func (cli *CommandLine) send(from, to string, amount int, nodeID string, mineNow
 func (cli *CommandLine) reindexUTXO(nodeID string) {
 	chain := blockchain.ContinueBlockchain(nodeID)
 	defer chain.Database.Close()
-	UTXOSet := blockchain.UTXOSet{chain}
+	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	UTXOSet.Reindex()
 
 	count := UTXOSet.CountTransactions()
