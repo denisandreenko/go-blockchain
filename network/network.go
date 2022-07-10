@@ -207,6 +207,21 @@ func HandleInventory(request []byte, chain *blockchain.Blockchain) {
 	}
 }
 
+func HandleGetBlocks(request []byte, chain *blockchain.Blockchain) {
+	var buff bytes.Buffer
+	var payload GetBlocks
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	blocks := chain.GetBlockHashes()
+	SendInventory(payload.AddrFrom, "block", blocks)
+}
+
 func RequestBlocks() {
 	for _, node := range KnownNodes {
 		SendGetBlocks(node)
@@ -222,7 +237,7 @@ func SendAddr(address string) {
 	SendData(address, request)
 }
 
-func SendInv(address, kind string, items [][]byte) {
+func SendInventory(address, kind string, items [][]byte) {
 	inventory := Inv{nodeAddress, kind, items}
 	payload := GobEncode(inventory)
 	request := append(CmdToBytes("inventory"), payload...)
