@@ -10,24 +10,15 @@ import (
 	"os"
 )
 
-const walletFile = "./tmp/wallets_%s.data"
+const walletFile = "/tmp/wallets_%s.data"
 
 type Wallets struct {
 	Wallets map[string]*Wallet
 }
 
-func CreateWallets(nodeID string) (*Wallets, error) {
-	wallets := Wallets{}
-	wallets.Wallets = make(map[string]*Wallet)
-
-	err := wallets.LoadFile(nodeID)
-
-	return &wallets, err
-}
-
 func (ws *Wallets) AddWallet() string {
 	wallet := MakeWallet()
-	address := fmt.Sprintf("%s", wallet.Address())
+	address := string(wallet.Address())
 
 	ws.Wallets[address] = wallet
 
@@ -46,6 +37,15 @@ func (ws *Wallets) GetAllAddresses() []string {
 
 func (ws Wallets) GetWallet(address string) Wallet {
 	return *ws.Wallets[address]
+}
+
+func CreateWallets(nodeID string) (*Wallets, error) {
+	wallets := Wallets{}
+	wallets.Wallets = make(map[string]*Wallet)
+
+	err := wallets.LoadFile(nodeID)
+
+	return &wallets, err
 }
 
 func (ws *Wallets) LoadFile(nodeID string) error {

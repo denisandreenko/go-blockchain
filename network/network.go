@@ -3,6 +3,7 @@ package network
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -67,6 +68,31 @@ type Version struct {
 	AddrFrom   string
 }
 
+func StartServer(nodeID, minerAddress string) {
+	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
+	mineAddress = minerAddress
+	ln, err := net.Listen(protocol, nodeAddress)
+	if err != nil {
+		log.Panic(err)
+	}
+	defer ln.Close()
+
+	chain := blockchain.ContinueBlockchain(nodeID)
+	defer chain.Database.Close()
+	go CloseDB(chain)
+
+	if nodeAddress != KnownNodes[0] {
+		SendVersion(KnownNodes[0], chain)
+	}
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Panic(err)
+		}
+		go HandleConnection(conn, chain)
+	}
+}
+
 func HandleConnection(conn net.Conn, chain *blockchain.Blockchain) {
 	req, err := ioutil.ReadAll(conn)
 	defer conn.Close()
@@ -78,10 +104,23 @@ func HandleConnection(conn net.Conn, chain *blockchain.Blockchain) {
 	fmt.Printf("Received %s command\n", command)
 
 	switch command {
+	case "addr":
+		HandleAddr(req)
+	case "block":
+		HandleBlock(req, chain)
+	case "inventory":
+		HandleInventory(req, chain)
+	case "getblocks":
+		HandleGetBlocks(req, chain)
+	case "getdata":
+		HandleGetData(req, chain)
+	case "tx":
+		HandleTx(req, chain)
+	case "version":
+		HandleVersion(req, chain)
 	default:
 		fmt.Println("Unknown command")
 	}
-
 }
 
 func HandleAddr(request []byte) {
@@ -131,6 +170,43 @@ func HandleBlock(request []byte, chain *blockchain.Blockchain) {
 	}
 }
 
+func HandleInventory(request []byte, chain *blockchain.Blockchain) {
+	var buff bytes.Buffer
+	var payload Inv
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	fmt.Printf("Recevied inventory with %d %s\n", len(payload.Items), payload.Type)
+
+	if payload.Type == "block" {
+		blocksInTransit = payload.Items
+
+		blockHash := payload.Items[0]
+		SendGetData(payload.AddrFrom, "block", blockHash)
+
+		newInTransit := [][]byte{}
+		for _, b := range blocksInTransit {
+			if bytes.Compare(b, blockHash) != 0 {
+				newInTransit = append(newInTransit, b)
+			}
+		}
+		blocksInTransit = newInTransit
+	}
+
+	if payload.Type == "tx" {
+		txID := payload.Items[0]
+
+		if memoryPool[hex.EncodeToString(txID)].ID == nil {
+			SendGetData(payload.AddrFrom, "tx", txID)
+		}
+	}
+}
+
 func RequestBlocks() {
 	for _, node := range KnownNodes {
 		SendGetBlocks(node)
@@ -149,7 +225,7 @@ func SendAddr(address string) {
 func SendInv(address, kind string, items [][]byte) {
 	inventory := Inv{nodeAddress, kind, items}
 	payload := GobEncode(inventory)
-	request := append(CmdToBytes("inv"), payload...)
+	request := append(CmdToBytes("inventory"), payload...)
 
 	SendData(address, request)
 }
@@ -172,6 +248,15 @@ func SendTx(addr string, tnx *blockchain.Transaction) {
 	data := Tx{nodeAddress, tnx.Serialize()}
 	payload := GobEncode(data)
 	request := append(CmdToBytes("tx"), payload...)
+
+	SendData(addr, request)
+}
+
+func SendVersion(addr string, chain *blockchain.Blockchain) {
+	bestHeight := chain.GetBestHeight()
+	payload := GobEncode(Version{version, bestHeight, nodeAddress})
+
+	request := append(CmdToBytes("version"), payload...)
 
 	SendData(addr, request)
 }

@@ -16,18 +16,13 @@ import (
 )
 
 const (
-	_dbPath      = "/tmp/badger/blocks_%s"
+	_dbPath      = "/tmp/blocks_%s"
 	_genesisData = "1st tx from Genesis"
 )
 
 type Blockchain struct {
 	LastHash []byte
 	Database *badger.DB
-}
-
-type BlockchainIterator struct {
-	CurrentHash []byte
-	Database    *badger.DB
 }
 
 func InitBlockchain(address string, nodeId string) *Blockchain {
@@ -341,7 +336,7 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 		block := iter.Next()
 
 		for _, tx := range block.Transactions {
-			if bytes.Compare(tx.ID, ID) == 0 {
+			if bytes.Equal(tx.ID, ID) {
 				return *tx, nil
 			}
 		}
@@ -352,36 +347,6 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 	}
 
 	return Transaction{}, errors.New("transaction doesn't exist")
-}
-
-func (chain *Blockchain) Iterator() *BlockchainIterator {
-	iter := &BlockchainIterator{chain.LastHash, chain.Database}
-
-	return iter
-}
-
-func (iter *BlockchainIterator) Next() *Block {
-	var block *Block
-
-	err := iter.Database.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(iter.CurrentHash)
-		Handle(err)
-		var encodedBlock []byte
-		err = item.Value(func(val []byte) error {
-			fmt.Printf("Last hash: %s\n", val)
-			encodedBlock = append([]byte{}, val...)
-			return nil
-		})
-		block = Deserialize(encodedBlock)
-
-		return err
-	})
-	Handle(err)
-
-	iter.CurrentHash = block.PrevHash
-
-	return block
-
 }
 
 func retry(dir string, originalOpts badger.Options) (*badger.DB, error) {
