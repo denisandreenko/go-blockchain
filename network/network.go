@@ -222,6 +222,34 @@ func HandleGetBlocks(request []byte, chain *blockchain.Blockchain) {
 	SendInventory(payload.AddrFrom, "block", blocks)
 }
 
+func HandleGetData(request []byte, chain *blockchain.Blockchain) {
+	var buff bytes.Buffer
+	var payload GetData
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	if payload.Type == "block" {
+		block, err := chain.GetBlock([]byte(payload.ID))
+		if err != nil {
+			return
+		}
+
+		SendBlock(payload.AddrFrom, &block)
+	}
+
+	if payload.Type == "tx" {
+		txID := hex.EncodeToString(payload.ID)
+		tx := memoryPool[txID]
+
+		SendTx(payload.AddrFrom, &tx)
+	}
+}
+
 func RequestBlocks() {
 	for _, node := range KnownNodes {
 		SendGetBlocks(node)
@@ -235,6 +263,14 @@ func SendAddr(address string) {
 	request := append(CmdToBytes("addr"), payload...)
 
 	SendData(address, request)
+}
+
+func SendBlock(addr string, b *blockchain.Block) {
+	data := Block{nodeAddress, b.Serialize()}
+	payload := GobEncode(data)
+	request := append(CmdToBytes("block"), payload...)
+
+	SendData(addr, request)
 }
 
 func SendInventory(address, kind string, items [][]byte) {
