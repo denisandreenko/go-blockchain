@@ -280,6 +280,31 @@ func HandleTx(request []byte, chain *blockchain.Blockchain) {
 	}
 }
 
+func HandleVersion(request []byte, chain *blockchain.Blockchain) {
+	var buff bytes.Buffer
+	var payload Version
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bestHeight := chain.GetBestHeight()
+	otherHeight := payload.BestHeight
+
+	if bestHeight < otherHeight {
+		SendGetBlocks(payload.AddrFrom)
+	} else if bestHeight > otherHeight {
+		SendVersion(payload.AddrFrom, chain)
+	}
+
+	if !NodeIsKnown(payload.AddrFrom) {
+		KnownNodes = append(KnownNodes, payload.AddrFrom)
+	}
+}
+
 func MineTx(chain *blockchain.Blockchain) {
 	var txs []*blockchain.Transaction
 
@@ -441,6 +466,16 @@ func GobEncode(data interface{}) []byte {
 	}
 
 	return buff.Bytes()
+}
+
+func NodeIsKnown(addr string) bool {
+	for _, node := range KnownNodes {
+		if node == addr {
+			return true
+		}
+	}
+
+	return false
 }
 
 func CloseDB(chain *blockchain.Blockchain) {
