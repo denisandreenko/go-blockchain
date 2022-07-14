@@ -250,6 +250,102 @@ func HandleGetData(request []byte, chain *blockchain.Blockchain) {
 	}
 }
 
+func HandleTx(request []byte, chain *blockchain.Blockchain) {
+	var buff bytes.Buffer
+	var payload Tx
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	txData := payload.Transaction
+	tx := blockchain.DeserializeTransaction(txData)
+	memoryPool[hex.EncodeToString(tx.ID)] = tx
+
+	fmt.Printf("%s, %d", nodeAddress, len(memoryPool))
+
+	if nodeAddress == KnownNodes[0] {
+		for _, node := range KnownNodes {
+			if node != nodeAddress && node != payload.AddrFrom {
+				SendInventory(node, "tx", [][]byte{tx.ID})
+			}
+		}
+	} else {
+		if len(memoryPool) >= 2 && len(mineAddress) > 0 {
+			MineTx(chain)
+		}
+	}
+}
+
+func HandleVersion(request []byte, chain *blockchain.Blockchain) {
+	var buff bytes.Buffer
+	var payload Version
+
+	buff.Write(request[commandLength:])
+	dec := gob.NewDecoder(&buff)
+	err := dec.Decode(&payload)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bestHeight := chain.GetBestHeight()
+	otherHeight := payload.BestHeight
+
+	if bestHeight < otherHeight {
+		SendGetBlocks(payload.AddrFrom)
+	} else if bestHeight > otherHeight {
+		SendVersion(payload.AddrFrom, chain)
+	}
+
+	if !NodeIsKnown(payload.AddrFrom) {
+		KnownNodes = append(KnownNodes, payload.AddrFrom)
+	}
+}
+
+func MineTx(chain *blockchain.Blockchain) {
+	var txs []*blockchain.Transaction
+
+	for id := range memoryPool {
+		fmt.Printf("tx: %s\n", memoryPool[id].ID)
+		tx := memoryPool[id]
+		if chain.VerifyTransaction(&tx) {
+			txs = append(txs, &tx)
+		}
+	}
+
+	if len(txs) == 0 {
+		fmt.Println("All txs are invalid")
+		return
+	}
+
+	cbTx := blockchain.CoinbaseTx(mineAddress, "")
+	txs = append(txs, cbTx)
+
+	newBlock := chain.MineBlock(txs)
+	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
+	UTXOSet.Reindex()
+
+	fmt.Println("New Block mined")
+
+	for _, tx := range txs {
+		txID := hex.EncodeToString(tx.ID)
+		delete(memoryPool, txID)
+	}
+
+	for _, node := range KnownNodes {
+		if node != nodeAddress {
+			SendInventory(node, "block", [][]byte{newBlock.Hash})
+		}
+	}
+
+	if len(memoryPool) > 0 {
+		MineTx(chain)
+	}
+}
+
 func RequestBlocks() {
 	for _, node := range KnownNodes {
 		SendGetBlocks(node)
@@ -357,7 +453,7 @@ func BytesToCmd(bytes []byte) string {
 		}
 	}
 
-	return fmt.Sprintf("%s", cmd)
+	return string(cmd)
 }
 
 func GobEncode(data interface{}) []byte {
@@ -370,6 +466,16 @@ func GobEncode(data interface{}) []byte {
 	}
 
 	return buff.Bytes()
+}
+
+func NodeIsKnown(addr string) bool {
+	for _, node := range KnownNodes {
+		if node == addr {
+			return true
+		}
+	}
+
+	return false
 }
 
 func CloseDB(chain *blockchain.Blockchain) {
