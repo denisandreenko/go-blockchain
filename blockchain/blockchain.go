@@ -25,15 +25,15 @@ type Blockchain struct {
 	Database *badger.DB
 }
 
-func InitBlockchain(address string, nodeId string) *Blockchain {
-	path := fmt.Sprintf(_dbPath, nodeId)
+func InitBlockchain(address string, nodeID string) *Blockchain {
+	path := fmt.Sprintf(_dbPath, nodeID)
 	if isDBExists(path) {
 		fmt.Println("Blockchain already exists")
 		runtime.Goexit()
 	}
 
 	var lastHash []byte
-	opts := badger.DefaultOptions(_dbPath)
+	opts := badger.DefaultOptions(path)
 	opts.Logger = nil
 
 	db, err := openDB(path, opts)
@@ -43,11 +43,11 @@ func InitBlockchain(address string, nodeId string) *Blockchain {
 		cbtx := CoinbaseTx(address, _genesisData)
 		genesis := Genesis(cbtx)
 		fmt.Println("Genesis created")
-		err = txn.Set(genesis.Hash, genesis.Serialize())
-		Handle(err)
-		err = txn.Set([]byte("lh"), genesis.Hash)
-
 		lastHash = genesis.Hash
+
+		err = txn.Set(lastHash, genesis.Serialize())
+		Handle(err)
+		err = txn.Set([]byte("lh"), lastHash)
 
 		return err
 	})
@@ -65,7 +65,7 @@ func ContinueBlockchain(nodeId string) *Blockchain {
 		runtime.Goexit()
 	}
 
-	opts := badger.DefaultOptions(_dbPath)
+	opts := badger.DefaultOptions(path)
 	opts.Logger = nil
 
 	db, err := openDB(path, opts)
@@ -349,17 +349,6 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 	return Transaction{}, errors.New("transaction doesn't exist")
 }
 
-func retry(dir string, originalOpts badger.Options) (*badger.DB, error) {
-	lockPath := filepath.Join(dir, "LOCK")
-	if err := os.Remove(lockPath); err != nil {
-		return nil, fmt.Errorf(`removing "LOCK": %s`, err)
-	}
-	retryOpts := originalOpts
-	retryOpts.Truncate = true
-	db, err := badger.Open(retryOpts)
-	return db, err
-}
-
 func openDB(dir string, opts badger.Options) (*badger.DB, error) {
 	if db, err := badger.Open(opts); err != nil {
 		if strings.Contains(err.Error(), "LOCK") {
@@ -373,6 +362,17 @@ func openDB(dir string, opts badger.Options) (*badger.DB, error) {
 	} else {
 		return db, nil
 	}
+}
+
+func retry(dir string, originalOpts badger.Options) (*badger.DB, error) {
+	lockPath := filepath.Join(dir, "LOCK")
+	if err := os.Remove(lockPath); err != nil {
+		return nil, fmt.Errorf(`removing "LOCK": %s`, err)
+	}
+	retryOpts := originalOpts
+	retryOpts.Truncate = true
+	db, err := badger.Open(retryOpts)
+	return db, err
 }
 
 func isDBExists(path string) bool {

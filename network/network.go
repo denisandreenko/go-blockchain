@@ -328,7 +328,7 @@ func MineTx(chain *blockchain.Blockchain) {
 	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	UTXOSet.Reindex()
 
-	fmt.Println("New Block mined")
+	fmt.Println("New block mined")
 
 	for _, tx := range txs {
 		txID := hex.EncodeToString(tx.ID)

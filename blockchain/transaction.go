@@ -22,6 +22,8 @@ type Transaction struct {
 	Outputs []TxOutput
 }
 
+const _coinbaseReward = 20
+
 func CoinbaseTx(to, data string) *Transaction {
 	if data == "" {
 		randData := make([]byte, 24)
@@ -31,7 +33,7 @@ func CoinbaseTx(to, data string) *Transaction {
 	}
 
 	txin := TxInput{[]byte{}, -1, nil, []byte(data)}
-	txout := NewTxOutput(20, to)
+	txout := NewTxOutput(_coinbaseReward, to)
 
 	tx := Transaction{nil, []TxInput{txin}, []TxOutput{*txout}}
 	tx.ID = tx.Hash()

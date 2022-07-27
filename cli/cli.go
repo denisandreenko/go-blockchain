@@ -89,7 +89,7 @@ func (cli *CommandLine) createBlockchain(address string, nodeID string) {
 		log.Panic("Address is not valid")
 	}
 	chain := blockchain.InitBlockchain(address, nodeID)
-	chain.Database.Close()
+	defer chain.Database.Close()
 
 	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	UTXOSet.Reindex()
@@ -151,6 +151,7 @@ func (cli *CommandLine) send(from, to string, amount int, nodeID string, mineNow
 func (cli *CommandLine) reindexUTXO(nodeID string) {
 	chain := blockchain.ContinueBlockchain(nodeID)
 	defer chain.Database.Close()
+
 	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
 	UTXOSet.Reindex()
 
