@@ -26,19 +26,10 @@ type Blockchain struct {
 }
 
 func InitBlockchain(address string, nodeID string) *Blockchain {
-	path := fmt.Sprintf(_dbPath, nodeID)
-	if isDBExists(path) {
-		fmt.Println("Blockchain already exists")
-		runtime.Goexit()
-	}
-
-	var lastHash []byte
-	opts := badger.DefaultOptions(path)
-	opts.Logger = nil
-
-	db, err := openDB(path, opts)
+	db, err := openDB(nodeID)
 	Handle(err)
 
+	var lastHash []byte
 	err = db.Update(func(txn *badger.Txn) error {
 		cbtx := CoinbaseTx(address, _genesisData)
 		genesis := Genesis(cbtx)
@@ -51,24 +42,14 @@ func InitBlockchain(address string, nodeID string) *Blockchain {
 
 		return err
 	})
-
 	Handle(err)
 
 	blockchain := Blockchain{lastHash, db}
 	return &blockchain
 }
 
-func ContinueBlockchain(nodeId string) *Blockchain {
-	path := fmt.Sprintf(_dbPath, nodeId)
-	if !isDBExists(path) {
-		fmt.Println("No existing blockchain found, create one!")
-		runtime.Goexit()
-	}
-
-	opts := badger.DefaultOptions(path)
-	opts.Logger = nil
-
-	db, err := openDB(path, opts)
+func ContinueBlockchain(nodeID string) *Blockchain {
+	db, err := openDB(nodeID)
 	Handle(err)
 
 	var lastHash []byte
@@ -96,8 +77,7 @@ func (chain *Blockchain) AddBlock(block *Block) {
 			return nil
 		}
 
-		blockData := block.Serialize()
-		err := txn.Set(block.Hash, blockData)
+		err := txn.Set(block.Hash, block.Serialize())
 		Handle(err)
 
 		item, err := txn.Get([]byte("lh"))
@@ -349,10 +329,19 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 	return Transaction{}, errors.New("transaction doesn't exist")
 }
 
-func openDB(dir string, opts badger.Options) (*badger.DB, error) {
+func openDB(nodeID string) (*badger.DB, error) {
+	path := fmt.Sprintf(_dbPath, nodeID)
+	if isDBExists(path) {
+		fmt.Println("Blockchain already exists")
+		runtime.Goexit()
+	}
+
+	opts := badger.DefaultOptions(path)
+	opts.Logger = nil
+
 	if db, err := badger.Open(opts); err != nil {
 		if strings.Contains(err.Error(), "LOCK") {
-			if db, err := retry(dir, opts); err == nil {
+			if db, err := retry(path, opts); err == nil {
 				log.Println("database unlocked, value log truncated")
 				return db, nil
 			}

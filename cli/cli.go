@@ -118,11 +118,11 @@ func (cli *CommandLine) getBalance(address string) {
 }
 
 func (cli *CommandLine) send(from, to string, amount int, nodeID string, mineNow bool) {
-	if !wallet.ValidateAddress(to) {
-		log.Panic("address is not valid")
-	}
 	if !wallet.ValidateAddress(from) {
-		log.Panic("address is not valid")
+		log.Panic("'from' address is not valid")
+	}
+	if !wallet.ValidateAddress(to) {
+		log.Panic("'to' address is not valid")
 	}
 	chain := blockchain.ContinueBlockchain(nodeID)
 	UTXOSet := blockchain.UTXOSet{Blockchain: chain}
