@@ -26,7 +26,13 @@ type Blockchain struct {
 }
 
 func InitBlockchain(address string, nodeID string) *Blockchain {
-	db, err := openDB(nodeID)
+	path := fmt.Sprintf(_dbPath, nodeID)
+	if isDBExists(path) {
+		fmt.Println("Blockchain already exists")
+		runtime.Goexit()
+	}
+
+	db, err := openDB(path)
 	Handle(err)
 
 	var lastHash []byte
@@ -49,7 +55,13 @@ func InitBlockchain(address string, nodeID string) *Blockchain {
 }
 
 func ContinueBlockchain(nodeID string) *Blockchain {
-	db, err := openDB(nodeID)
+	path := fmt.Sprintf(_dbPath, nodeID)
+	if !isDBExists(path) {
+		fmt.Println("No existing blockchain found, create one!")
+		runtime.Goexit()
+	}
+
+	db, err := openDB(path)
 	Handle(err)
 
 	var lastHash []byte
@@ -151,6 +163,7 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 
 	newBlock := CreateBlock(transactions, lastHash, lastHeight+1)
 
+	// TODO: add block (update height)? chain.AddBlock(newBlock)
 	err = chain.Database.Update(func(txn *badger.Txn) error {
 		err := txn.Set(newBlock.Hash, newBlock.Serialize())
 		Handle(err)
@@ -329,13 +342,7 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 	return Transaction{}, errors.New("transaction doesn't exist")
 }
 
-func openDB(nodeID string) (*badger.DB, error) {
-	path := fmt.Sprintf(_dbPath, nodeID)
-	if isDBExists(path) {
-		fmt.Println("Blockchain already exists")
-		runtime.Goexit()
-	}
-
+func openDB(path string) (*badger.DB, error) {
 	opts := badger.DefaultOptions(path)
 	opts.Logger = nil
 

@@ -47,21 +47,20 @@ func (cli *CommandLine) validateArgs() {
 	}
 }
 
-func (cli *CommandLine) listAddresses(nodeID string) {
-	wallets, _ := wallet.CreateWallets(nodeID)
-	addresses := wallets.GetAllAddresses()
-
-	for _, address := range addresses {
-		fmt.Println(address)
-	}
-}
-
 func (cli *CommandLine) createWallet(nodeID string) {
 	wallets, _ := wallet.CreateWallets(nodeID)
 	address := wallets.AddWallet()
 	wallets.SaveFile(nodeID)
 
 	fmt.Printf("New address is: %s\n", address)
+}
+
+func (cli *CommandLine) listAddresses(nodeID string) {
+	wallets, _ := wallet.CreateWallets(nodeID)
+	addresses := wallets.GetAllAddresses()
+	for _, address := range addresses {
+		fmt.Println(address)
+	}
 }
 
 func (cli *CommandLine) printChain() {

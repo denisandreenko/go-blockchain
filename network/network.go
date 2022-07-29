@@ -391,32 +391,30 @@ func SendGetData(address, kind string, id []byte) {
 	SendData(address, request)
 }
 
-func SendTx(addr string, tnx *blockchain.Transaction) {
-	data := Tx{nodeAddress, tnx.Serialize()}
+func SendTx(address string, tx *blockchain.Transaction) {
+	data := Tx{nodeAddress, tx.Serialize()}
 	payload := GobEncode(data)
 	request := append(CmdToBytes("tx"), payload...)
 
-	SendData(addr, request)
+	SendData(address, request)
 }
 
-func SendVersion(addr string, chain *blockchain.Blockchain) {
+func SendVersion(address string, chain *blockchain.Blockchain) {
 	bestHeight := chain.GetBestHeight()
 	payload := GobEncode(Version{version, bestHeight, nodeAddress})
-
 	request := append(CmdToBytes("version"), payload...)
 
-	SendData(addr, request)
+	SendData(address, request)
 }
 
-func SendData(addr string, data []byte) {
-	conn, err := net.Dial(protocol, addr)
-
+func SendData(address string, data []byte) {
+	conn, err := net.Dial(protocol, address)
 	if err != nil {
-		fmt.Printf("%s is not available\n", addr)
+		fmt.Printf("%s is not available\n", address)
 		var updatedNodes []string
 
 		for _, node := range KnownNodes {
-			if node != addr {
+			if node != address {
 				updatedNodes = append(updatedNodes, node)
 			}
 		}
@@ -425,7 +423,6 @@ func SendData(addr string, data []byte) {
 
 		return
 	}
-
 	defer conn.Close()
 
 	_, err = io.Copy(conn, bytes.NewReader(data))
