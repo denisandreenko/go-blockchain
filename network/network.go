@@ -153,7 +153,7 @@ func HandleBlock(request []byte, chain *blockchain.Blockchain) {
 	blockData := payload.Block
 	block := blockchain.Deserialize(blockData)
 
-	fmt.Println("Recevied a new block!")
+	fmt.Println("Received a new block!")
 	chain.AddBlock(block)
 
 	fmt.Printf("Added block %x\n", block.Hash)
@@ -233,7 +233,7 @@ func HandleGetData(request []byte, chain *blockchain.Blockchain) {
 	}
 
 	if payload.Type == "block" {
-		block, err := chain.GetBlock([]byte(payload.ID))
+		block, err := chain.GetBlock(payload.ID)
 		if err != nil {
 			return
 		}
@@ -290,12 +290,12 @@ func HandleVersion(request []byte, chain *blockchain.Blockchain) {
 		log.Panic(err)
 	}
 
-	bestHeight := chain.GetBestHeight()
-	otherHeight := payload.BestHeight
+	localBestHeight := chain.GetBestHeight()
+	otherBestHeight := payload.BestHeight
 
-	if bestHeight < otherHeight {
+	if localBestHeight < otherBestHeight {
 		SendGetBlocks(payload.AddrFrom)
-	} else if bestHeight > otherHeight {
+	} else if localBestHeight > otherBestHeight {
 		SendVersion(payload.AddrFrom, chain)
 	}
 
