@@ -63,8 +63,8 @@ func (cli *CommandLine) listAddresses(nodeID string) {
 	}
 }
 
-func (cli *CommandLine) printChain() {
-	chain := blockchain.ContinueBlockchain("")
+func (cli *CommandLine) printChain(nodeID string) {
+	chain := blockchain.ContinueBlockchain(nodeID)
 	defer chain.Database.Close()
 	iter := chain.Iterator()
 
@@ -245,7 +245,7 @@ func (cli *CommandLine) Run() {
 		cli.createBlockchain(*createBlockchainAddress, nodeID)
 	}
 	if printChainCmd.Parsed() {
-		cli.printChain()
+		cli.printChain(nodeID)
 	}
 	if createWalletCmd.Parsed() {
 		cli.createWallet(nodeID)

@@ -94,9 +94,8 @@ func StartServer(nodeID, minerAddress string) {
 }
 
 func HandleConnection(conn net.Conn, chain *blockchain.Blockchain) {
-	req, err := ioutil.ReadAll(conn)
 	defer conn.Close()
-
+	req, err := ioutil.ReadAll(conn)
 	if err != nil {
 		log.Panic(err)
 	}
